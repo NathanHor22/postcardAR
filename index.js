@@ -6,12 +6,12 @@ const ROOMS = [
 ];
 
 const ROTATION_SPEED   = 0.005;
-const ANIM_DELAY       = 1.0;   // seconds before scale-in starts
-const ANIM_DURATION    = 0.5;   // seconds for scale-in
-const MODEL_SCALE      = 0.003; // size relative to postcard — tweak if needed
-const MODEL_Y_OFFSET   = 0.15;  // how far above the postcard the model floats
+const ANIM_DELAY       = 1.0;
+const ANIM_DURATION    = 0.5;
+const MODEL_SCALE      = 0.003;
+const MODEL_Y_OFFSET   = 0.15;
 const MAX_RECORD_MS    = 10000;
-const SWITCH_DURATION  = 0.25;  // seconds for scale-down when switching rooms
+const SWITCH_DURATION  = 0.25;
 
 // --- State ---
 let activeRoomIndex  = 0;
@@ -23,13 +23,13 @@ let trackerVisible   = false;
 const loadedModels    = [null, null, null];
 const customAudioUrls = [null, null, null];
 
-let scaleAnim       = { running: false, startTime: 0, delay: ANIM_DELAY };
-let roomSwitchAnim  = { active: false, targetIndex: -1, startTime: 0 };
-let mediaRecorder = null;
-let recordChunks  = [];
-let recordTimeout = null;
-let isRecording   = false;
-let overlayTimer  = null;
+let scaleAnim      = { running: false, startTime: 0, delay: ANIM_DELAY };
+let roomSwitchAnim = { active: false, targetIndex: -1, startTime: 0 };
+let mediaRecorder  = null;
+let recordChunks   = [];
+let recordTimeout  = null;
+let isRecording    = false;
+let overlayTimer   = null;
 
 // --- DOM refs ---
 const overlay = document.getElementById('scan-overlay');
@@ -48,7 +48,7 @@ ZapparThree.glContextSet(renderer.getContext());
 
 // --- Scene ---
 const scene = new THREE.Scene();
-// Background is set after camera.start() so we never see the uninitialised purple texture
+// Background assigned after camera.start() to avoid the uninitialised purple texture
 scene.background = null;
 
 scene.add(new THREE.AmbientLight(0xffffff, 0.8));
@@ -72,8 +72,8 @@ const imageTracker = new ZapparThree.ImageTrackerLoader(manager).load('./postcar
 const trackerGroup = new ZapparThree.ImageAnchorGroup(camera, imageTracker);
 scene.add(trackerGroup);
 
-// Pivot sits inside the anchor — we rotate this, not trackerGroup, because
-// Zappar writes trackerGroup's world matrix directly each frame.
+// Pivot inside the anchor — rotated on Y for turntable spin.
+// The model's rotation.x tilt lives on the model itself, keeping the pivot's Y axis true world-Y.
 const modelPivot = new THREE.Group();
 trackerGroup.add(modelPivot);
 
@@ -87,8 +87,9 @@ ROOMS.forEach(({ glbPath }, i) => {
         model.position.y = MODEL_Y_OFFSET;
         model.rotation.x = Math.PI / 2;
         loadedModels[i] = model;
-        if (i === 0) setActiveRoom(0);
-    });
+        // Show if this is the currently active room (handles late-loading models too)
+        if (i === activeRoomIndex) setActiveRoom(i);
+    }, undefined, (err) => console.error('Room', i, 'failed to load:', err));
 });
 
 // --- Room management ---
@@ -113,7 +114,7 @@ function setActiveRoom(index) {
     });
 }
 
-// --- Scale animation (ease-out cubic, targets MODEL_SCALE) ---
+// --- Scale animation (ease-out cubic) ---
 function startScaleAnimation(delayOverride) {
     const delay = delayOverride !== undefined ? delayOverride : ANIM_DELAY;
     scaleAnim = { running: true, startTime: performance.now(), delay };
@@ -140,8 +141,13 @@ function requestRoomSwitch(index) {
         scaleAnim.running = false;
         roomSwitchAnim = { active: true, targetIndex: index, startTime: performance.now() };
     } else {
+        const wasVisible = trackerVisible;
         setActiveRoom(index);
-        if (trackerVisible) startScaleAnimation(0);
+        if (wasVisible) {
+            trackerVisible = true;
+            startScaleAnimation(0);
+            playAudio();
+        }
     }
 }
 
@@ -156,18 +162,17 @@ function updateRoomSwitchAnimation() {
         const wasVisible = trackerVisible;
         roomSwitchAnim.active = false;
         setActiveRoom(roomSwitchAnim.targetIndex);
-        if (wasVisible) startScaleAnimation(0);
+        if (wasVisible) {
+            trackerVisible = true;
+            startScaleAnimation(0);
+            playAudio();
+        }
     }
 }
 
 // --- Overlay ---
-function showOverlay() {
-    overlay.classList.remove('hidden');
-}
-
-function hideOverlay() {
-    overlay.classList.add('hidden');
-}
+function showOverlay() { overlay.classList.remove('hidden'); }
+function hideOverlay()  { overlay.classList.add('hidden'); }
 
 // --- Audio ---
 function playAudio() {
@@ -177,7 +182,7 @@ function playAudio() {
     stopAudio();
     currentAudio = new Audio(src);
     currentAudio.onended = () => { isAudioPlaying = false; };
-    currentAudio.play();
+    currentAudio.play().catch(() => {});
     isAudioPlaying = true;
 }
 
@@ -195,7 +200,7 @@ function toggleAudio() {
     else playAudio();
 }
 
-// --- Tap to play (raycaster) ---
+// --- Tap to toggle audio ---
 const raycaster = new THREE.Raycaster();
 const pointer   = new THREE.Vector2();
 
@@ -284,18 +289,20 @@ function render() {
         clearTimeout(overlayTimer);
         hideOverlay();
         startScaleAnimation();
+        playAudio();
     }
 
     if (!isVisible && trackerVisible) {
-        // Postcard just lost — show overlay again after a short delay to avoid flicker
+        // Postcard just lost
         overlayTimer = setTimeout(showOverlay, 600);
+        stopAudio();
     }
 
     trackerVisible = isVisible;
 
     updateRoomSwitchAnimation();
 
-    if (isVisible) {
+    if (isVisible && activeModel) {
         modelPivot.rotation.y += ROTATION_SPEED;
         updateScaleAnimation();
     }
