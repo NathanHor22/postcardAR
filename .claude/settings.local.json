@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Bash(npx @zappar/zapworks-cli train postcard.jpg -o postcard.zpt)"
+    ]
+  }
+}
