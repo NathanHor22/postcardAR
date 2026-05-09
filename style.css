@@ -12,6 +12,91 @@ html, body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
+/* ── Welcome screen ───────────────────────────────────────── */
+#welcome-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(150deg, #0c0c1e 0%, #0a0a0a 55%, #1a0a12 100%);
+    transition: opacity 0.7s ease;
+    overflow: hidden;
+}
+
+#welcome-screen.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* Soft ambient glow behind content */
+#welcome-glow {
+    position: absolute;
+    width: 500px;
+    height: 500px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(110, 70, 255, 0.10) 0%, transparent 70%);
+    top: 40%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    animation: glowPulse 5s ease-in-out infinite;
+}
+
+@keyframes glowPulse {
+    0%, 100% { opacity: 0.6; transform: translate(-50%, -50%) scale(1); }
+    50%       { opacity: 1;   transform: translate(-50%, -50%) scale(1.2); }
+}
+
+#welcome-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 0 40px;
+    gap: 0;
+    position: relative;
+}
+
+#welcome-title {
+    font-size: clamp(44px, 13vw, 68px);
+    font-weight: 800;
+    color: #fff;
+    margin: 0;
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+}
+
+#welcome-tagline {
+    font-size: clamp(14px, 3.8vw, 18px);
+    color: rgba(255, 255, 255, 0.45);
+    margin: 14px 0 0;
+    font-weight: 400;
+    letter-spacing: 0.025em;
+}
+
+#start-btn {
+    margin-top: 48px;
+    padding: 18px 48px;
+    border-radius: 50px;
+    border: none;
+    background: #fff;
+    color: #111;
+    font-size: 17px;
+    font-weight: 600;
+    cursor: pointer;
+    letter-spacing: 0.01em;
+    transition: transform 0.15s ease, opacity 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+}
+
+#start-btn:active {
+    transform: scale(0.95);
+    opacity: 0.82;
+}
+
 /* ── Scan overlay ─────────────────────────────────────────── */
 #scan-overlay {
     position: fixed;
@@ -29,7 +114,7 @@ html, body {
     pointer-events: none;
 }
 
-/* Switch between loading-guide and scan-guide */
+/* Toggle between loading and scan guide */
 .guide-hidden {
     display: none !important;
 }
