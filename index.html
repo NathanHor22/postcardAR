@@ -11,6 +11,16 @@
 </head>
 <body>
 
+    <!-- Welcome / landing screen — shown first, hidden on Start -->
+    <div id="welcome-screen">
+        <div id="welcome-glow"></div>
+        <div id="welcome-content">
+            <h1 id="welcome-title">PostCard AR</h1>
+            <p id="welcome-tagline">AR postcard for your loved ones</p>
+            <button id="start-btn">Start Experience</button>
+        </div>
+    </div>
+
     <!-- Loading / scan overlay — sits above camera feed -->
     <div id="scan-overlay">
 
@@ -20,7 +30,7 @@
             <p class="guide-text">Loading rooms…</p>
         </div>
 
-        <!-- Phase 2: shown once loaded, guides user to scan -->
+        <!-- Phase 2: guides user to scan postcard -->
         <div id="scan-guide" class="guide-hidden">
             <div id="postcard-frame">
                 <img src="./postcard.jpg" id="postcard-preview" alt="" draggable="false" />
@@ -35,7 +45,7 @@
         <span id="hint-text"></span>
     </div>
 
-    <!-- Recording countdown — pointer-events: none so mic button stays tappable beneath -->
+    <!-- Recording countdown — pointer-events: none so mic button stays tappable -->
     <div id="record-overlay" class="hidden">
         <div id="record-ring">
             <span id="record-count">10</span>
@@ -49,7 +59,6 @@
         <div id="room-buttons">
             <button class="room-btn active" data-room="0">Room 1</button>
             <button class="room-btn" data-room="1">Room 2</button>
-            <button class="room-btn" data-room="2">Room 3</button>
         </div>
         <button id="mic-btn" title="Record voice note">🎤</button>
     </div>

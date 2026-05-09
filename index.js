@@ -2,16 +2,15 @@
 const ROOMS = [
     { glbPath: './room1.glb', audioPath: './room1theme.mp3' },
     { glbPath: './room2.glb', audioPath: null },
-    { glbPath: './room3.glb', audioPath: null },
 ];
 
-const ROTATION_SPEED  = 0.005;
-const ANIM_DELAY      = 1.0;
-const ANIM_DURATION   = 0.5;
-const MODEL_SCALE     = 0.003;
+const ANIM_DELAY      = 1.0;   // seconds before scale-in starts after postcard detected
+const ANIM_DURATION   = 0.5;   // seconds for scale-in
+const MODEL_SCALE     = 0.003; // base size relative to postcard
 const MODEL_Y_OFFSET  = 0.15;
 const MAX_RECORD_MS   = 10000;
 const SWITCH_DURATION = 0.25;
+const PULSE_SPEED     = 1.8;   // radians/sec → ~3.5s cycle between 1.0× and 1.1×
 
 // --- State ---
 let activeRoomIndex = 0;
@@ -21,8 +20,8 @@ let isAudioPlaying  = false;
 let trackerVisible  = false;
 let modelsLoaded    = 0;
 
-const loadedModels    = [null, null, null];
-const customAudioUrls = [null, null, null];
+const loadedModels    = [null, null];
+const customAudioUrls = [null, null];
 
 let scaleAnim      = { running: false, startTime: 0, delay: ANIM_DELAY };
 let roomSwitchAnim = { active: false, targetIndex: -1, startTime: 0 };
@@ -36,13 +35,14 @@ let recordCountdown         = 10;
 let recordCountdownInterval = null;
 
 // --- DOM refs ---
-const overlay       = document.getElementById('scan-overlay');
-const loadingGuide  = document.getElementById('loading-guide');
-const scanGuide     = document.getElementById('scan-guide');
-const hintBar       = document.getElementById('hint-bar');
-const hintText      = document.getElementById('hint-text');
-const recordOverlay = document.getElementById('record-overlay');
-const recordCount   = document.getElementById('record-count');
+const overlay        = document.getElementById('scan-overlay');
+const loadingGuide   = document.getElementById('loading-guide');
+const scanGuide      = document.getElementById('scan-guide');
+const hintBar        = document.getElementById('hint-bar');
+const hintText       = document.getElementById('hint-text');
+const recordOverlay  = document.getElementById('record-overlay');
+const recordCount    = document.getElementById('record-count');
+const welcomeScreen  = document.getElementById('welcome-screen');
 
 // --- Renderer ---
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -52,13 +52,12 @@ document.body.appendChild(renderer.domElement);
 
 window.addEventListener('resize', () => renderer.setSize(window.innerWidth, window.innerHeight));
 
-// --- Zappar camera (rear-facing) ---
+// --- Zappar camera ---
 const camera = new ZapparThree.Camera();
 ZapparThree.glContextSet(renderer.getContext());
 
 // --- Scene ---
 const scene = new THREE.Scene();
-// Background assigned after camera.start() to avoid uninitialised purple texture
 scene.background = null;
 
 scene.add(new THREE.AmbientLight(0xffffff, 0.8));
@@ -66,29 +65,13 @@ const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
 dirLight.position.set(0, 5, 5);
 scene.add(dirLight);
 
-// --- Camera permission ---
-ZapparThree.permissionRequestUI().then((granted) => {
-    if (granted) {
-        camera.start();
-        scene.background = camera.backgroundTexture;
-    } else {
-        ZapparThree.permissionDeniedUI();
-    }
-});
-
 // --- Image tracker ---
 const manager      = new ZapparThree.LoadingManager();
 const imageTracker = new ZapparThree.ImageTrackerLoader(manager).load('./postcard.zpt');
 const trackerGroup = new ZapparThree.ImageAnchorGroup(camera, imageTracker);
 scene.add(trackerGroup);
 
-// Pivot inside the anchor for Z-axis spin.
-// Zappar writes trackerGroup's world matrix directly, so rotation on the pivot
-// (a plain Group with no other rotations) gives a true world-Z turntable spin.
-const modelPivot = new THREE.Group();
-trackerGroup.add(modelPivot);
-
-// --- Preload all room models ---
+// --- Preload all room models (starts immediately in background) ---
 const gltfLoader = new THREE.GLTFLoader(manager);
 
 function onModelLoaded(gltf, i) {
@@ -98,12 +81,10 @@ function onModelLoaded(gltf, i) {
     model.rotation.x = Math.PI / 2;
     loadedModels[i] = model;
 
-    // Show immediately if this is the currently selected room
     if (i === activeRoomIndex) setActiveRoom(i);
 
     modelsLoaded++;
     if (modelsLoaded === ROOMS.length) {
-        // All rooms ready — switch overlay from loading to scan phase
         loadingGuide.classList.add('guide-hidden');
         scanGuide.classList.remove('guide-hidden');
     }
@@ -111,7 +92,6 @@ function onModelLoaded(gltf, i) {
 
 function onModelError(i, err) {
     console.error('Room', i, 'failed to load:', err);
-    // Still advance the counter so the UI doesn't get stuck on loading
     modelsLoaded++;
     if (modelsLoaded === ROOMS.length) {
         loadingGuide.classList.add('guide-hidden');
@@ -123,9 +103,23 @@ ROOMS.forEach(({ glbPath }, i) => {
     gltfLoader.load(glbPath, (gltf) => onModelLoaded(gltf, i), undefined, (err) => onModelError(i, err));
 });
 
+// --- Start button: request camera permission, kick off AR ---
+document.getElementById('start-btn').addEventListener('click', () => {
+    welcomeScreen.classList.add('hidden');
+
+    ZapparThree.permissionRequestUI().then((granted) => {
+        if (granted) {
+            camera.start();
+            scene.background = camera.backgroundTexture;
+        } else {
+            ZapparThree.permissionDeniedUI();
+        }
+    });
+});
+
 // --- Room management ---
 function setActiveRoom(index) {
-    if (activeModel) modelPivot.remove(activeModel);
+    if (activeModel) trackerGroup.remove(activeModel);
     stopAudio();
 
     activeRoomIndex = index;
@@ -134,8 +128,7 @@ function setActiveRoom(index) {
     if (!activeModel) return;
 
     activeModel.scale.setScalar(0);
-    modelPivot.rotation.z = 0;
-    modelPivot.add(activeModel);
+    trackerGroup.add(activeModel);
 
     scaleAnim.running = false;
     trackerVisible    = false;
@@ -145,7 +138,7 @@ function setActiveRoom(index) {
     });
 }
 
-// --- Scale animation (ease-out cubic) ---
+// --- Scale-in animation (ease-out cubic, 0 → MODEL_SCALE) ---
 function startScaleAnimation(delayOverride) {
     const delay = delayOverride !== undefined ? delayOverride : ANIM_DELAY;
     scaleAnim = { running: true, startTime: performance.now(), delay };
@@ -161,6 +154,16 @@ function updateScaleAnimation() {
     activeModel.scale.setScalar(MODEL_SCALE * (1 - Math.pow(1 - t, 3)));
 
     if (t >= 1) scaleAnim.running = false;
+}
+
+// --- Idle pulse animation (MODEL_SCALE × 1.0 ↔ MODEL_SCALE × 1.1, looping) ---
+function updatePulseAnimation() {
+    if (!activeModel || !trackerVisible) return;
+    if (scaleAnim.running || roomSwitchAnim.active) return;
+
+    const t = performance.now() / 1000;
+    // Oscillates between 1.0 and 1.1 times MODEL_SCALE
+    activeModel.scale.setScalar(MODEL_SCALE * (1.05 + 0.05 * Math.sin(t * PULSE_SPEED)));
 }
 
 // --- Room switch animation (scale down → swap → scale up) ---
@@ -209,11 +212,9 @@ function hideOverlay()  { overlay.classList.add('hidden'); }
 
 // --- Hint bar ---
 function updateHint() {
-    const hasAudio = customAudioUrls[activeRoomIndex] !== null
-                  || ROOMS[activeRoomIndex].audioPath !== null;
     if (customAudioUrls[activeRoomIndex]) {
         hintText.textContent = 'Tap anywhere to play your recording  ·  🎤 to re-record';
-    } else if (hasAudio) {
+    } else if (ROOMS[activeRoomIndex].audioPath) {
         hintText.textContent = 'Tap anywhere to play audio  ·  🎤 to record your voice';
     } else {
         hintText.textContent = 'Tap 🎤 to record a 10-second voice note for this room';
@@ -246,7 +247,7 @@ function toggleAudio() {
     else playAudio();
 }
 
-// --- Tap anywhere on the canvas to toggle audio ---
+// Tap anywhere on the canvas to play/pause audio
 renderer.domElement.addEventListener('click',    () => { if (trackerGroup.visible && activeModel) toggleAudio(); });
 renderer.domElement.addEventListener('touchend', () => { if (trackerGroup.visible && activeModel) toggleAudio(); }, { passive: true });
 
@@ -263,7 +264,6 @@ function startRecording() {
             isRecording  = true;
             updateMicButton();
 
-            // Countdown timer
             recordCountdown = 10;
             recordCount.textContent = recordCountdown;
             showRecordOverlay();
@@ -332,7 +332,6 @@ function render() {
     const isVisible = trackerGroup.visible;
 
     if (isVisible && !trackerVisible) {
-        // Postcard just detected
         clearTimeout(overlayTimer);
         hideOverlay();
         startScaleAnimation();
@@ -342,7 +341,6 @@ function render() {
     }
 
     if (!isVisible && trackerVisible) {
-        // Postcard just lost
         overlayTimer = setTimeout(showOverlay, 600);
         stopAudio();
         hintBar.classList.add('hidden');
@@ -353,7 +351,7 @@ function render() {
     updateRoomSwitchAnimation();
 
     if (isVisible && activeModel) {
-        modelPivot.rotation.z += ROTATION_SPEED;
+        updatePulseAnimation();
         updateScaleAnimation();
     }
 
