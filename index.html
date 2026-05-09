@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,user-scalable=no,minimal-ui" />
+    <title>PostcardAR</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://libs.zappar.com/zappar-threejs/2.0.6/zappar-threejs.js"></script>
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+    <div id="ui">
+        <div id="room-buttons">
+            <button class="room-btn active" data-room="0">Room 1</button>
+            <button class="room-btn" data-room="1">Room 2</button>
+            <button class="room-btn" data-room="2">Room 3</button>
+        </div>
+        <button id="mic-btn" title="Record voice note">🎤</button>
+    </div>
+    <script type="module" src="index.js"></script>
+</body>
+</html>
