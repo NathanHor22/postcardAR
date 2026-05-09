@@ -33,6 +33,7 @@ let overlayTimer   = null;
 
 let recordCountdown         = 10;
 let recordCountdownInterval = null;
+let hasSeenRecordInfo       = false;
 
 // --- DOM refs ---
 const overlay        = document.getElementById('scan-overlay');
@@ -212,12 +213,14 @@ function hideOverlay()  { overlay.classList.add('hidden'); }
 
 // --- Hint bar ---
 function updateHint() {
-    if (customAudioUrls[activeRoomIndex]) {
+    if (isAudioPlaying) {
+        hintText.textContent = '🔊 Playing  ·  Tap anywhere to stop';
+    } else if (customAudioUrls[activeRoomIndex]) {
         hintText.textContent = 'Tap anywhere to play your recording  ·  🎤 to re-record';
     } else if (ROOMS[activeRoomIndex].audioPath) {
         hintText.textContent = 'Tap anywhere to play audio  ·  🎤 to record your voice';
     } else {
-        hintText.textContent = 'Tap 🎤 to record a 10-second voice note for this room';
+        hintText.textContent = 'Tap 🎤 to record a voice note for this room';
     }
 }
 
@@ -228,9 +231,10 @@ function playAudio() {
 
     stopAudio();
     currentAudio = new Audio(src);
-    currentAudio.onended = () => { isAudioPlaying = false; };
+    currentAudio.onended = () => { isAudioPlaying = false; updateHint(); };
     currentAudio.play().catch(() => {});
     isAudioPlaying = true;
+    updateHint();
 }
 
 function stopAudio() {
@@ -240,6 +244,7 @@ function stopAudio() {
         currentAudio = null;
     }
     isAudioPlaying = false;
+    updateHint();
 }
 
 function toggleAudio() {
@@ -315,14 +320,36 @@ function updateMicButton() {
     btn.title = isRecording ? 'Stop recording' : 'Record voice note';
 }
 
+// --- Recording info modal ---
+function showRecordInfo() {
+    document.getElementById('record-info-modal').classList.remove('hidden');
+}
+function hideRecordInfo() {
+    document.getElementById('record-info-modal').classList.add('hidden');
+}
+
+document.getElementById('record-info-start').addEventListener('click', () => {
+    hasSeenRecordInfo = true;
+    hideRecordInfo();
+    startRecording();
+});
+
+document.getElementById('record-info-cancel').addEventListener('click', hideRecordInfo);
+document.getElementById('record-info-backdrop').addEventListener('click', hideRecordInfo);
+
 // --- UI listeners ---
 document.querySelectorAll('.room-btn').forEach((btn) => {
     btn.addEventListener('click', () => requestRoomSwitch(Number(btn.dataset.room)));
 });
 
 document.getElementById('mic-btn').addEventListener('click', () => {
-    if (isRecording) stopRecording();
-    else startRecording();
+    if (isRecording) {
+        stopRecording();
+    } else if (!hasSeenRecordInfo) {
+        showRecordInfo();
+    } else {
+        startRecording();
+    }
 });
 
 // --- Render loop ---
