@@ -54,6 +54,40 @@
         <p id="record-sublabel">Tap 🎤 to stop early</p>
     </div>
 
+    <!-- Recording instructions bottom sheet -->
+    <div id="record-info-modal" class="hidden">
+        <div id="record-info-backdrop"></div>
+        <div id="record-info-sheet">
+            <div id="record-info-handle"></div>
+            <h2 id="record-info-title">Record Your Voice</h2>
+            <div id="record-steps">
+                <div class="record-step">
+                    <div class="step-num">1</div>
+                    <div class="step-body">
+                        <strong>Press Start Recording</strong>
+                        <span>A 10-second countdown begins</span>
+                    </div>
+                </div>
+                <div class="record-step">
+                    <div class="step-num">2</div>
+                    <div class="step-body">
+                        <strong>Speak your message</strong>
+                        <span>Tap 🎤 again to stop early</span>
+                    </div>
+                </div>
+                <div class="record-step">
+                    <div class="step-num">3</div>
+                    <div class="step-body">
+                        <strong>Tap the room to play back</strong>
+                        <span>Tap again to stop the audio</span>
+                    </div>
+                </div>
+            </div>
+            <button id="record-info-start">Start Recording</button>
+            <button id="record-info-cancel">Cancel</button>
+        </div>
+    </div>
+
     <!-- Bottom UI — room switcher + mic -->
     <div id="ui">
         <div id="room-buttons">

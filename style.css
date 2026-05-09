@@ -296,6 +296,144 @@ html, body {
     50%       { border-color: rgba(220, 38, 38, 1);    transform: scale(1.06); }
 }
 
+/* ── Recording info bottom sheet ─────────────────────────── */
+#record-info-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    display: flex;
+    align-items: flex-end;
+    pointer-events: all;
+    transition: opacity 0.3s ease;
+}
+
+#record-info-modal.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+#record-info-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+
+#record-info-sheet {
+    position: relative;
+    width: 100%;
+    background: rgba(18, 18, 28, 0.97);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border-radius: 24px 24px 0 0;
+    padding: 12px 24px 48px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    transform: translateY(0);
+    transition: transform 0.4s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+#record-info-modal.hidden #record-info-sheet {
+    transform: translateY(110%);
+}
+
+#record-info-handle {
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.2);
+    align-self: center;
+    margin-bottom: 4px;
+}
+
+#record-info-title {
+    color: #fff;
+    font-size: 20px;
+    font-weight: 700;
+    margin: 0;
+    letter-spacing: -0.01em;
+}
+
+#record-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.record-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+}
+
+.step-num {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+
+.step-body {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.step-body strong {
+    color: #fff;
+    font-size: 15px;
+    font-weight: 600;
+    display: block;
+}
+
+.step-body span {
+    color: rgba(255, 255, 255, 0.45);
+    font-size: 13px;
+}
+
+#record-info-start {
+    width: 100%;
+    padding: 16px;
+    border-radius: 14px;
+    border: none;
+    background: #fff;
+    color: #111;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+#record-info-start:active {
+    opacity: 0.82;
+    transform: scale(0.98);
+}
+
+#record-info-cancel {
+    width: 100%;
+    padding: 10px;
+    border-radius: 14px;
+    border: none;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 15px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    margin-top: -8px;
+}
+
 /* ── Bottom UI ────────────────────────────────────────────── */
 #ui {
     position: fixed;
