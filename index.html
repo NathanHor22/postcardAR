@@ -10,6 +10,22 @@
     <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+
+    <!-- Shown until the postcard is detected. Covers any initialisation flash. -->
+    <div id="scan-overlay">
+        <div id="scan-guide">
+            <div id="postcard-frame">
+                <img src="./postcard.jpg" id="postcard-preview" alt="" draggable="false" />
+                <div id="corner tl"></div>
+                <div id="corner tr"></div>
+                <div id="corner bl"></div>
+                <div id="corner br"></div>
+            </div>
+            <p id="scan-hint">Point your camera at the postcard to begin</p>
+        </div>
+    </div>
+
+    <!-- Bottom UI — room switcher + mic -->
     <div id="ui">
         <div id="room-buttons">
             <button class="room-btn active" data-room="0">Room 1</button>
@@ -18,6 +34,7 @@
         </div>
         <button id="mic-btn" title="Record voice note">🎤</button>
     </div>
+
     <script type="module" src="index.js"></script>
 </body>
 </html>

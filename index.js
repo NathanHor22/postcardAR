@@ -5,10 +5,12 @@ const ROOMS = [
     { glbPath: './room3.glb', audioPath: null },
 ];
 
-const ROTATION_SPEED    = 0.003;
-const ANIM_DELAY        = 1.0;   // seconds before scale-in begins
-const ANIM_DURATION     = 0.5;   // seconds for scale-in
-const MAX_RECORD_MS     = 10000;
+const ROTATION_SPEED = 0.003;
+const ANIM_DELAY     = 1.0;   // seconds before scale-in starts
+const ANIM_DURATION  = 0.5;   // seconds for scale-in
+const MODEL_SCALE    = 0.06;  // size relative to postcard — tweak if needed
+const MODEL_Y_OFFSET = 0.15;  // how far above the postcard the model floats
+const MAX_RECORD_MS  = 10000;
 
 // --- State ---
 let activeRoomIndex  = 0;
@@ -20,11 +22,15 @@ let trackerVisible   = false;
 const loadedModels    = [null, null, null];
 const customAudioUrls = [null, null, null];
 
-let scaleAnim    = { running: false, startTime: 0 };
-let mediaRecorder  = null;
-let recordChunks   = [];
-let recordTimeout  = null;
-let isRecording    = false;
+let scaleAnim     = { running: false, startTime: 0 };
+let mediaRecorder = null;
+let recordChunks  = [];
+let recordTimeout = null;
+let isRecording   = false;
+let overlayTimer  = null;
+
+// --- DOM refs ---
+const overlay = document.getElementById('scan-overlay');
 
 // --- Renderer ---
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -40,7 +46,8 @@ ZapparThree.glContextSet(renderer.getContext());
 
 // --- Scene ---
 const scene = new THREE.Scene();
-scene.background = camera.backgroundTexture;
+// Background is set after camera.start() so we never see the uninitialised purple texture
+scene.background = null;
 
 scene.add(new THREE.AmbientLight(0xffffff, 0.8));
 const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
@@ -49,8 +56,12 @@ scene.add(dirLight);
 
 // --- Camera permission ---
 ZapparThree.permissionRequestUI().then((granted) => {
-    if (granted) camera.start();
-    else ZapparThree.permissionDeniedUI();
+    if (granted) {
+        camera.start();
+        scene.background = camera.backgroundTexture;
+    } else {
+        ZapparThree.permissionDeniedUI();
+    }
 });
 
 // --- Image tracker ---
@@ -64,8 +75,10 @@ const gltfLoader = new THREE.GLTFLoader(manager);
 
 ROOMS.forEach(({ glbPath }, i) => {
     gltfLoader.load(glbPath, (gltf) => {
-        loadedModels[i] = gltf.scene;
-        loadedModels[i].scale.setScalar(0);
+        const model = gltf.scene;
+        model.scale.setScalar(0);
+        model.position.y = MODEL_Y_OFFSET;
+        loadedModels[i] = model;
         if (i === 0) setActiveRoom(0);
     });
 });
@@ -84,7 +97,6 @@ function setActiveRoom(index) {
     trackerGroup.rotation.y = 0;
     trackerGroup.add(activeModel);
 
-    // Force scale animation to restart on next visible frame
     scaleAnim.running = false;
     trackerVisible = false;
 
@@ -93,7 +105,7 @@ function setActiveRoom(index) {
     });
 }
 
-// --- Scale animation (ease-out cubic) ---
+// --- Scale animation (ease-out cubic, targets MODEL_SCALE) ---
 function startScaleAnimation() {
     scaleAnim = { running: true, startTime: performance.now() };
 }
@@ -105,9 +117,18 @@ function updateScaleAnimation() {
     if (elapsed < ANIM_DELAY) return;
 
     const t = Math.min((elapsed - ANIM_DELAY) / ANIM_DURATION, 1);
-    activeModel.scale.setScalar(1 - Math.pow(1 - t, 3));
+    activeModel.scale.setScalar(MODEL_SCALE * (1 - Math.pow(1 - t, 3)));
 
     if (t >= 1) scaleAnim.running = false;
+}
+
+// --- Overlay ---
+function showOverlay() {
+    overlay.classList.remove('hidden');
+}
+
+function hideOverlay() {
+    overlay.classList.add('hidden');
 }
 
 // --- Audio ---
@@ -143,8 +164,8 @@ const pointer   = new THREE.Vector2();
 function handleTap(event) {
     if (!trackerGroup.visible || !activeModel) return;
 
-    const rect    = renderer.domElement.getBoundingClientRect();
-    const source  = event.changedTouches ? event.changedTouches[0] : event;
+    const rect   = renderer.domElement.getBoundingClientRect();
+    const source = event.changedTouches ? event.changedTouches[0] : event;
     pointer.set(
         ((source.clientX - rect.left) / rect.width)  * 2 - 1,
         -((source.clientY - rect.top)  / rect.height) * 2 + 1
@@ -204,7 +225,7 @@ function updateMicButton() {
     btn.title = isRecording ? 'Stop recording' : 'Record voice note';
 }
 
-// --- UI event listeners ---
+// --- UI listeners ---
 document.querySelectorAll('.room-btn').forEach((btn) => {
     btn.addEventListener('click', () => setActiveRoom(Number(btn.dataset.room)));
 });
@@ -220,7 +241,18 @@ function render() {
 
     const isVisible = trackerGroup.visible;
 
-    if (isVisible && !trackerVisible) startScaleAnimation();
+    if (isVisible && !trackerVisible) {
+        // Postcard just detected
+        clearTimeout(overlayTimer);
+        hideOverlay();
+        startScaleAnimation();
+    }
+
+    if (!isVisible && trackerVisible) {
+        // Postcard just lost — show overlay again after a short delay to avoid flicker
+        overlayTimer = setTimeout(showOverlay, 600);
+    }
+
     trackerVisible = isVisible;
 
     if (isVisible) {
