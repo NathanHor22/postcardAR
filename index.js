@@ -5,12 +5,13 @@ const ROOMS = [
     { glbPath: './room3.glb', audioPath: null },
 ];
 
-const ROTATION_SPEED = 0.003;
-const ANIM_DELAY     = 1.0;   // seconds before scale-in starts
-const ANIM_DURATION  = 0.5;   // seconds for scale-in
-const MODEL_SCALE    = 0.005; // size relative to postcard — tweak if needed
-const MODEL_Y_OFFSET = 0.15;  // how far above the postcard the model floats
-const MAX_RECORD_MS  = 10000;
+const ROTATION_SPEED   = 0.012;
+const ANIM_DELAY       = 1.0;   // seconds before scale-in starts
+const ANIM_DURATION    = 0.5;   // seconds for scale-in
+const MODEL_SCALE      = 0.003; // size relative to postcard — tweak if needed
+const MODEL_Y_OFFSET   = 0.15;  // how far above the postcard the model floats
+const MAX_RECORD_MS    = 10000;
+const SWITCH_DURATION  = 0.25;  // seconds for scale-down when switching rooms
 
 // --- State ---
 let activeRoomIndex  = 0;
@@ -22,7 +23,8 @@ let trackerVisible   = false;
 const loadedModels    = [null, null, null];
 const customAudioUrls = [null, null, null];
 
-let scaleAnim     = { running: false, startTime: 0 };
+let scaleAnim       = { running: false, startTime: 0, delay: ANIM_DELAY };
+let roomSwitchAnim  = { active: false, targetIndex: -1, startTime: 0 };
 let mediaRecorder = null;
 let recordChunks  = [];
 let recordTimeout = null;
@@ -107,20 +109,50 @@ function setActiveRoom(index) {
 }
 
 // --- Scale animation (ease-out cubic, targets MODEL_SCALE) ---
-function startScaleAnimation() {
-    scaleAnim = { running: true, startTime: performance.now() };
+function startScaleAnimation(delayOverride) {
+    const delay = delayOverride !== undefined ? delayOverride : ANIM_DELAY;
+    scaleAnim = { running: true, startTime: performance.now(), delay };
 }
 
 function updateScaleAnimation() {
     if (!scaleAnim.running || !activeModel) return;
 
     const elapsed = (performance.now() - scaleAnim.startTime) / 1000;
-    if (elapsed < ANIM_DELAY) return;
+    if (elapsed < scaleAnim.delay) return;
 
-    const t = Math.min((elapsed - ANIM_DELAY) / ANIM_DURATION, 1);
+    const t = Math.min((elapsed - scaleAnim.delay) / ANIM_DURATION, 1);
     activeModel.scale.setScalar(MODEL_SCALE * (1 - Math.pow(1 - t, 3)));
 
     if (t >= 1) scaleAnim.running = false;
+}
+
+// --- Room switch animation (scale down → swap → scale up) ---
+function requestRoomSwitch(index) {
+    if (index === activeRoomIndex) return;
+    if (roomSwitchAnim.active) return;
+
+    if (activeModel && trackerVisible && activeModel.scale.x > 0) {
+        scaleAnim.running = false;
+        roomSwitchAnim = { active: true, targetIndex: index, startTime: performance.now() };
+    } else {
+        setActiveRoom(index);
+        if (trackerVisible) startScaleAnimation(0);
+    }
+}
+
+function updateRoomSwitchAnimation() {
+    if (!roomSwitchAnim.active || !activeModel) return;
+
+    const elapsed = (performance.now() - roomSwitchAnim.startTime) / 1000;
+    const t = Math.min(elapsed / SWITCH_DURATION, 1);
+    activeModel.scale.setScalar(MODEL_SCALE * Math.pow(1 - t, 2));
+
+    if (t >= 1) {
+        const wasVisible = trackerVisible;
+        roomSwitchAnim.active = false;
+        setActiveRoom(roomSwitchAnim.targetIndex);
+        if (wasVisible) startScaleAnimation(0);
+    }
 }
 
 // --- Overlay ---
@@ -228,7 +260,7 @@ function updateMicButton() {
 
 // --- UI listeners ---
 document.querySelectorAll('.room-btn').forEach((btn) => {
-    btn.addEventListener('click', () => setActiveRoom(Number(btn.dataset.room)));
+    btn.addEventListener('click', () => requestRoomSwitch(Number(btn.dataset.room)));
 });
 
 document.getElementById('mic-btn').addEventListener('click', () => {
@@ -255,6 +287,8 @@ function render() {
     }
 
     trackerVisible = isVisible;
+
+    updateRoomSwitchAnimation();
 
     if (isVisible) {
         trackerGroup.rotation.y += ROTATION_SPEED;

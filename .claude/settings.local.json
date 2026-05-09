@@ -3,7 +3,8 @@
     "allow": [
       "Bash(npm --version)",
       "Bash(npx @zappar/zapworks-cli train postcard.jpg -o postcard.zpt)",
-      "Bash(ngrok version *)"
+      "Bash(ngrok version *)",
+      "WebFetch(domain:docs.zap.works)"
     ]
   }
 }
