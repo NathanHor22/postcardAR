@@ -103,7 +103,7 @@ function setActiveRoom(index) {
     if (!activeModel) return;
 
     activeModel.scale.setScalar(0);
-    modelPivot.rotation.y = 0;
+    modelPivot.rotation.x = 0;
     modelPivot.add(activeModel);
 
     scaleAnim.running = false;
@@ -303,7 +303,7 @@ function render() {
     updateRoomSwitchAnimation();
 
     if (isVisible && activeModel) {
-        modelPivot.rotation.y += ROTATION_SPEED;
+        modelPivot.rotation.x += ROTATION_SPEED;
         updateScaleAnimation();
     }
 
