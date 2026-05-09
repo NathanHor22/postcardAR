@@ -8,7 +8,7 @@ const ROOMS = [
 const ROTATION_SPEED = 0.003;
 const ANIM_DELAY     = 1.0;   // seconds before scale-in starts
 const ANIM_DURATION  = 0.5;   // seconds for scale-in
-const MODEL_SCALE    = 0.06;  // size relative to postcard — tweak if needed
+const MODEL_SCALE    = 0.01;  // size relative to postcard — tweak if needed
 const MODEL_Y_OFFSET = 0.15;  // how far above the postcard the model floats
 const MAX_RECORD_MS  = 10000;
 
