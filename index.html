@@ -11,18 +11,37 @@
 </head>
 <body>
 
-    <!-- Shown until the postcard is detected. Covers any initialisation flash. -->
+    <!-- Loading / scan overlay — sits above camera feed -->
     <div id="scan-overlay">
-        <div id="scan-guide">
+
+        <!-- Phase 1: shown while GLB files download -->
+        <div id="loading-guide">
+            <div id="loading-spinner"></div>
+            <p class="guide-text">Loading rooms…</p>
+        </div>
+
+        <!-- Phase 2: shown once loaded, guides user to scan -->
+        <div id="scan-guide" class="guide-hidden">
             <div id="postcard-frame">
                 <img src="./postcard.jpg" id="postcard-preview" alt="" draggable="false" />
-                <div id="corner tl"></div>
-                <div id="corner tr"></div>
-                <div id="corner bl"></div>
-                <div id="corner br"></div>
             </div>
             <p id="scan-hint">Align the postcard image with your camera to see the 3D model</p>
         </div>
+
+    </div>
+
+    <!-- Contextual hint shown when model is visible -->
+    <div id="hint-bar" class="hidden">
+        <span id="hint-text"></span>
+    </div>
+
+    <!-- Recording countdown — pointer-events: none so mic button stays tappable beneath -->
+    <div id="record-overlay" class="hidden">
+        <div id="record-ring">
+            <span id="record-count">10</span>
+        </div>
+        <p id="record-label">Recording voice note</p>
+        <p id="record-sublabel">Tap 🎤 to stop early</p>
     </div>
 
     <!-- Bottom UI — room switcher + mic -->
