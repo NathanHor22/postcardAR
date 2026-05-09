@@ -5,7 +5,13 @@
       "Bash(Select-Object FullName, PSIsContainer)",
       "Bash(Sort-Object FullName)",
       "Bash(Format-Table -AutoSize)",
-      "Bash(grep -E '\\\\.\\(jpg|png|mp3|glb|zpt|yml\\)$')"
+      "Bash(grep -E '\\\\.\\(jpg|png|mp3|glb|zpt|yml\\)$')",
+      "Bash(tasklist)",
+      "Bash(findstr ngrok *)",
+      "Bash(where ngrok.exe)",
+      "Bash(powershell -command \"Get-Command ngrok -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source\")",
+      "PowerShell(ngrok version)",
+      "PowerShell(& \"C:\\\\Users\\\\damna\\\\AppData\\\\Roaming\\\\npm\\\\node_modules\\\\ngrok\\\\bin\\\\ngrok.exe\" version 2>&1)"
     ]
   }
 }

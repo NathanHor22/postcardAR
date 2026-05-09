@@ -5,7 +5,7 @@ const ROOMS = [
     { glbPath: './room3.glb', audioPath: null },
 ];
 
-const ROTATION_SPEED   = 0.012;
+const ROTATION_SPEED   = 0.005;
 const ANIM_DELAY       = 1.0;   // seconds before scale-in starts
 const ANIM_DURATION    = 0.5;   // seconds for scale-in
 const MODEL_SCALE      = 0.003; // size relative to postcard — tweak if needed
@@ -72,6 +72,11 @@ const imageTracker = new ZapparThree.ImageTrackerLoader(manager).load('./postcar
 const trackerGroup = new ZapparThree.ImageAnchorGroup(camera, imageTracker);
 scene.add(trackerGroup);
 
+// Pivot sits inside the anchor — we rotate this, not trackerGroup, because
+// Zappar writes trackerGroup's world matrix directly each frame.
+const modelPivot = new THREE.Group();
+trackerGroup.add(modelPivot);
+
 // --- Preload all room models ---
 const gltfLoader = new THREE.GLTFLoader(manager);
 
@@ -88,7 +93,7 @@ ROOMS.forEach(({ glbPath }, i) => {
 
 // --- Room management ---
 function setActiveRoom(index) {
-    if (activeModel) trackerGroup.remove(activeModel);
+    if (activeModel) modelPivot.remove(activeModel);
     stopAudio();
 
     activeRoomIndex = index;
@@ -97,8 +102,8 @@ function setActiveRoom(index) {
     if (!activeModel) return;
 
     activeModel.scale.setScalar(0);
-    trackerGroup.rotation.y = 0;
-    trackerGroup.add(activeModel);
+    modelPivot.rotation.y = 0;
+    modelPivot.add(activeModel);
 
     scaleAnim.running = false;
     trackerVisible = false;
@@ -291,7 +296,7 @@ function render() {
     updateRoomSwitchAnimation();
 
     if (isVisible) {
-        trackerGroup.rotation.y += ROTATION_SPEED;
+        modelPivot.rotation.y += ROTATION_SPEED;
         updateScaleAnimation();
     }
 
