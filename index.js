@@ -5,20 +5,21 @@ const ROOMS = [
     { glbPath: './room3.glb', audioPath: null },
 ];
 
-const ROTATION_SPEED   = 0.005;
-const ANIM_DELAY       = 1.0;
-const ANIM_DURATION    = 0.5;
-const MODEL_SCALE      = 0.003;
-const MODEL_Y_OFFSET   = 0.15;
-const MAX_RECORD_MS    = 10000;
-const SWITCH_DURATION  = 0.25;
+const ROTATION_SPEED  = 0.005;
+const ANIM_DELAY      = 1.0;
+const ANIM_DURATION   = 0.5;
+const MODEL_SCALE     = 0.003;
+const MODEL_Y_OFFSET  = 0.15;
+const MAX_RECORD_MS   = 10000;
+const SWITCH_DURATION = 0.25;
 
 // --- State ---
-let activeRoomIndex  = 0;
-let activeModel      = null;
-let currentAudio     = null;
-let isAudioPlaying   = false;
-let trackerVisible   = false;
+let activeRoomIndex = 0;
+let activeModel     = null;
+let currentAudio    = null;
+let isAudioPlaying  = false;
+let trackerVisible  = false;
+let modelsLoaded    = 0;
 
 const loadedModels    = [null, null, null];
 const customAudioUrls = [null, null, null];
@@ -31,8 +32,17 @@ let recordTimeout  = null;
 let isRecording    = false;
 let overlayTimer   = null;
 
+let recordCountdown         = 10;
+let recordCountdownInterval = null;
+
 // --- DOM refs ---
-const overlay = document.getElementById('scan-overlay');
+const overlay       = document.getElementById('scan-overlay');
+const loadingGuide  = document.getElementById('loading-guide');
+const scanGuide     = document.getElementById('scan-guide');
+const hintBar       = document.getElementById('hint-bar');
+const hintText      = document.getElementById('hint-text');
+const recordOverlay = document.getElementById('record-overlay');
+const recordCount   = document.getElementById('record-count');
 
 // --- Renderer ---
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -48,7 +58,7 @@ ZapparThree.glContextSet(renderer.getContext());
 
 // --- Scene ---
 const scene = new THREE.Scene();
-// Background assigned after camera.start() to avoid the uninitialised purple texture
+// Background assigned after camera.start() to avoid uninitialised purple texture
 scene.background = null;
 
 scene.add(new THREE.AmbientLight(0xffffff, 0.8));
@@ -67,29 +77,50 @@ ZapparThree.permissionRequestUI().then((granted) => {
 });
 
 // --- Image tracker ---
-const manager = new ZapparThree.LoadingManager();
+const manager      = new ZapparThree.LoadingManager();
 const imageTracker = new ZapparThree.ImageTrackerLoader(manager).load('./postcard.zpt');
 const trackerGroup = new ZapparThree.ImageAnchorGroup(camera, imageTracker);
 scene.add(trackerGroup);
 
-// Pivot inside the anchor — rotated on Y for turntable spin.
-// The model's rotation.x tilt lives on the model itself, keeping the pivot's Y axis true world-Y.
+// Pivot inside the anchor for Z-axis spin.
+// Zappar writes trackerGroup's world matrix directly, so rotation on the pivot
+// (a plain Group with no other rotations) gives a true world-Z turntable spin.
 const modelPivot = new THREE.Group();
 trackerGroup.add(modelPivot);
 
 // --- Preload all room models ---
 const gltfLoader = new THREE.GLTFLoader(manager);
 
+function onModelLoaded(gltf, i) {
+    const model = gltf.scene;
+    model.scale.setScalar(0);
+    model.position.y = MODEL_Y_OFFSET;
+    model.rotation.x = Math.PI / 2;
+    loadedModels[i] = model;
+
+    // Show immediately if this is the currently selected room
+    if (i === activeRoomIndex) setActiveRoom(i);
+
+    modelsLoaded++;
+    if (modelsLoaded === ROOMS.length) {
+        // All rooms ready — switch overlay from loading to scan phase
+        loadingGuide.classList.add('guide-hidden');
+        scanGuide.classList.remove('guide-hidden');
+    }
+}
+
+function onModelError(i, err) {
+    console.error('Room', i, 'failed to load:', err);
+    // Still advance the counter so the UI doesn't get stuck on loading
+    modelsLoaded++;
+    if (modelsLoaded === ROOMS.length) {
+        loadingGuide.classList.add('guide-hidden');
+        scanGuide.classList.remove('guide-hidden');
+    }
+}
+
 ROOMS.forEach(({ glbPath }, i) => {
-    gltfLoader.load(glbPath, (gltf) => {
-        const model = gltf.scene;
-        model.scale.setScalar(0);
-        model.position.y = MODEL_Y_OFFSET;
-        model.rotation.x = Math.PI / 2;
-        loadedModels[i] = model;
-        // Show if this is the currently active room (handles late-loading models too)
-        if (i === activeRoomIndex) setActiveRoom(i);
-    }, undefined, (err) => console.error('Room', i, 'failed to load:', err));
+    gltfLoader.load(glbPath, (gltf) => onModelLoaded(gltf, i), undefined, (err) => onModelError(i, err));
 });
 
 // --- Room management ---
@@ -98,16 +129,16 @@ function setActiveRoom(index) {
     stopAudio();
 
     activeRoomIndex = index;
-    activeModel = loadedModels[index];
+    activeModel     = loadedModels[index];
 
     if (!activeModel) return;
 
     activeModel.scale.setScalar(0);
-    modelPivot.rotation.x = 0;
+    modelPivot.rotation.z = 0;
     modelPivot.add(activeModel);
 
     scaleAnim.running = false;
-    trackerVisible = false;
+    trackerVisible    = false;
 
     document.querySelectorAll('.room-btn').forEach((btn, i) => {
         btn.classList.toggle('active', i === index);
@@ -149,13 +180,14 @@ function requestRoomSwitch(index) {
             playAudio();
         }
     }
+    updateHint();
 }
 
 function updateRoomSwitchAnimation() {
     if (!roomSwitchAnim.active || !activeModel) return;
 
     const elapsed = (performance.now() - roomSwitchAnim.startTime) / 1000;
-    const t = Math.min(elapsed / SWITCH_DURATION, 1);
+    const t       = Math.min(elapsed / SWITCH_DURATION, 1);
     activeModel.scale.setScalar(MODEL_SCALE * Math.pow(1 - t, 2));
 
     if (t >= 1) {
@@ -167,12 +199,26 @@ function updateRoomSwitchAnimation() {
             startScaleAnimation(0);
             playAudio();
         }
+        updateHint();
     }
 }
 
 // --- Overlay ---
 function showOverlay() { overlay.classList.remove('hidden'); }
 function hideOverlay()  { overlay.classList.add('hidden'); }
+
+// --- Hint bar ---
+function updateHint() {
+    const hasAudio = customAudioUrls[activeRoomIndex] !== null
+                  || ROOMS[activeRoomIndex].audioPath !== null;
+    if (customAudioUrls[activeRoomIndex]) {
+        hintText.textContent = 'Tap anywhere to play your recording  ·  🎤 to re-record';
+    } else if (hasAudio) {
+        hintText.textContent = 'Tap anywhere to play audio  ·  🎤 to record your voice';
+    } else {
+        hintText.textContent = 'Tap 🎤 to record a 10-second voice note for this room';
+    }
+}
 
 // --- Audio ---
 function playAudio() {
@@ -200,30 +246,14 @@ function toggleAudio() {
     else playAudio();
 }
 
-// --- Tap to toggle audio ---
-const raycaster = new THREE.Raycaster();
-const pointer   = new THREE.Vector2();
-
-function handleTap(event) {
-    if (!trackerGroup.visible || !activeModel) return;
-
-    const rect   = renderer.domElement.getBoundingClientRect();
-    const source = event.changedTouches ? event.changedTouches[0] : event;
-    pointer.set(
-        ((source.clientX - rect.left) / rect.width)  * 2 - 1,
-        -((source.clientY - rect.top)  / rect.height) * 2 + 1
-    );
-
-    raycaster.setFromCamera(pointer, camera);
-    if (raycaster.intersectObjects(activeModel.children, true).length > 0) {
-        toggleAudio();
-    }
-}
-
-renderer.domElement.addEventListener('click', handleTap);
-renderer.domElement.addEventListener('touchend', handleTap, { passive: true });
+// --- Tap anywhere on the canvas to toggle audio ---
+renderer.domElement.addEventListener('click',    () => { if (trackerGroup.visible && activeModel) toggleAudio(); });
+renderer.domElement.addEventListener('touchend', () => { if (trackerGroup.visible && activeModel) toggleAudio(); }, { passive: true });
 
 // --- Voice recording ---
+function showRecordOverlay() { recordOverlay.classList.remove('hidden'); }
+function hideRecordOverlay() { recordOverlay.classList.add('hidden'); }
+
 function startRecording() {
     if (isRecording) return;
 
@@ -232,6 +262,19 @@ function startRecording() {
             recordChunks = [];
             isRecording  = true;
             updateMicButton();
+
+            // Countdown timer
+            recordCountdown = 10;
+            recordCount.textContent = recordCountdown;
+            showRecordOverlay();
+            recordCountdownInterval = setInterval(() => {
+                recordCountdown--;
+                recordCount.textContent = recordCountdown;
+                if (recordCountdown <= 0) {
+                    clearInterval(recordCountdownInterval);
+                    recordCountdownInterval = null;
+                }
+            }, 1000);
 
             mediaRecorder = new MediaRecorder(stream);
             mediaRecorder.ondataavailable = (e) => recordChunks.push(e.data);
@@ -245,6 +288,7 @@ function startRecording() {
                 isRecording  = false;
                 updateMicButton();
                 stream.getTracks().forEach((t) => t.stop());
+                updateHint();
             };
 
             mediaRecorder.start();
@@ -259,6 +303,9 @@ function startRecording() {
 function stopRecording() {
     if (!isRecording || !mediaRecorder) return;
     clearTimeout(recordTimeout);
+    clearInterval(recordCountdownInterval);
+    recordCountdownInterval = null;
+    hideRecordOverlay();
     mediaRecorder.stop();
 }
 
@@ -290,12 +337,15 @@ function render() {
         hideOverlay();
         startScaleAnimation();
         playAudio();
+        updateHint();
+        hintBar.classList.remove('hidden');
     }
 
     if (!isVisible && trackerVisible) {
         // Postcard just lost
         overlayTimer = setTimeout(showOverlay, 600);
         stopAudio();
+        hintBar.classList.add('hidden');
     }
 
     trackerVisible = isVisible;
@@ -303,7 +353,7 @@ function render() {
     updateRoomSwitchAnimation();
 
     if (isVisible && activeModel) {
-        modelPivot.rotation.x += ROTATION_SPEED;
+        modelPivot.rotation.z += ROTATION_SPEED;
         updateScaleAnimation();
     }
 
