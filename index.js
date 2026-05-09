@@ -8,7 +8,7 @@ const ROOMS = [
 const ROTATION_SPEED = 0.003;
 const ANIM_DELAY     = 1.0;   // seconds before scale-in starts
 const ANIM_DURATION  = 0.5;   // seconds for scale-in
-const MODEL_SCALE    = 0.01;  // size relative to postcard — tweak if needed
+const MODEL_SCALE    = 0.005; // size relative to postcard — tweak if needed
 const MODEL_Y_OFFSET = 0.15;  // how far above the postcard the model floats
 const MAX_RECORD_MS  = 10000;
 
@@ -78,6 +78,7 @@ ROOMS.forEach(({ glbPath }, i) => {
         const model = gltf.scene;
         model.scale.setScalar(0);
         model.position.y = MODEL_Y_OFFSET;
+        model.rotation.x = Math.PI / 2;
         loadedModels[i] = model;
         if (i === 0) setActiveRoom(0);
     });
